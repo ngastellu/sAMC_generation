@@ -20,3 +20,11 @@ you will have to modify `rungenerateog.sh`.
 
 The file `model-checkpoint-1.pt` contains the weights of the CNN used for the generation.
 Take care not to overwrite it.
+
+For more information on MAP please refer to the following publications:
+* [Generating Multiscale Amorphous Molecular Structures Using Deep Learning: A Study in 2D
+](https://doi.org/10.1021/acs.jpclett.0c02535)
+
+* [Inside the black box: A physical basis for the effectiveness of deep generative models of amorphous materials](https://doi.org/10.1016/j.jcp.2021.110885)
+
+* [Simulations of disordered matter in 3D with the morphological autoregressive protocol (MAP) and convolutional neural networks](https://doi.org/10.1063/5.0174615)
