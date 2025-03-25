@@ -1,3 +1,5 @@
+# Deep learning generation of amorphous monolayer carbon structures
+
 The code in this repository can be used to generate amorphous monolayer carbon (AMC) fragments using the
 PixelCNN implementation of the morphological autoregression protocol (MAP).
 
