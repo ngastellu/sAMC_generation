@@ -1,3 +1,4 @@
+from pathlib import Path
 from utils import *
 from torch import backends
 from torch import save
@@ -6,6 +7,11 @@ import gc
 
 
 def main(configs):
+    run_dir = Path(configs.experiment_name)
+    chkpt_dir = run_dir / 'checkpoints' # folder with saved model params
+    sample_dir = run_dir / 'samples' # folder with generated samples
+    Path.mkdir(chkpt_dir ,parents=True,exist_ok=True)
+    Path.mkdir(sample_dir ,parents=True,exist_ok=True)
    # experiment = get_comet_experiment(configs)
     print('one')
     model, optimizer, dataDims = initialize_training(configs)
@@ -55,17 +61,17 @@ def main(configs):
             print('epoch={}; nll_tr={:.5f}; nll_te={:.5f}; time_tr={:.1f}s; time_te={:.1f}s'.format(epoch, torch.mean(torch.stack(err_tr)), torch.mean(torch.stack(err_te)), time_tr, time_te))
             converged = auto_convergence(configs, epoch, tr_err_hist, te_err_hist)
             if int(epoch % 1 == 0):
-                 with open('training-info' + '.txt', 'a') as f:  # Change 'w' to 'a' to append instead of overwrite
+                 with open(run_dir / 'training-info' + '.txt', 'a') as f:  # Change 'w' to 'a' to append instead of overwrite
                         f.write(str(torch.mean(torch.stack(err_tr)).float()) + " " + str(time_tr) + " " + str(torch.mean(torch.stack(err_te)).float()) + "\n")
 
 
             if epoch % configs.generation_period == 0:
-                sample, time_ge= generation(configs, dataDims, model,epoch)
+                sample, time_ge= generation(configs, dataDims, model, epoch, sample_dir)
                # log_generation_stats(configs, epoch, experiment, sample, agreements, output_analysis)
                 save({
                     'epoch': epoch,
                     'model_state_dict': model.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict()},'./model-amorphous-65layer40filter-epoch50.pt')
+                    'optimizer_state_dict': optimizer.state_dict()},chkpt_dir / f'model_gen-{epoch}.pt')
                 sample, time_ge = generation(configs, dataDims, model,epoch)
 
 
@@ -80,11 +86,11 @@ def main(configs):
 
             epoch += 1
 
-        # generate samples
+        # save model
         save({
             'epoch': epoch,
             'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict()},'./model-amorphous-65layer40filter-epoch50.pt')
+            'optimizer_state_dict': optimizer.state_dict()},chkpt_dir / f'model_epoch-{epoch}_final.pt')
     #    sample, time_ge = generation(configs, dataDims, model,epoch)
        # log_generation_stats(configs, epoch, experiment, sample, agreements, output_analysis)
     print('finished!')

@@ -62,5 +62,5 @@ add_bool_arg(parser, 'comet', default=False)
 
 configs,unknown= parser.parse_known_args()
 
-save_args(configs, 'training')
+save_args(configs, 'train')
 main(configs)

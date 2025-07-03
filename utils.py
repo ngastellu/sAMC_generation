@@ -24,6 +24,7 @@ from qcnico.coords_io import read_xyz
 class build_dataset(Dataset):
     def __init__(self, configs):
         np.random.seed(configs.dataset_seed)
+        run_dir = configs.experiment_name
         if configs.training_dataset == 'amorphous':
             self.samples = np.load('data/coords_13944p6.npy', allow_pickle=True)
            # self.samples_identity = np.load('data/ac2d_symbols.npy', allow_pickle=True)
@@ -80,7 +81,7 @@ class build_dataset(Dataset):
             'conv field' : configs.conv_layers + configs.conv_size // 2
 
         }
-        a_file = open("datadim.pkl", "wb")
+        a_file = open(f"{run_dir}/datadim.pkl", "wb")
         pickle.dump(self.dataDims, a_file)
         a_file.close()
 
@@ -489,12 +490,12 @@ def generate_samples_gated(configs, dataDims, model):
     return sample, time_ge
 
 
-def generation(configs, dataDims, model,epoch):
+def generation(configs, dataDims, model,epoch, samples_dir):
     #err_te, time_te = test_net(model, te)  # clean run net
 
     sample, time_ge = generate_samples_gated(configs, dataDims, model)  # generate samples
 
-    np.save('samples/run_{}_samples128-num2'.format(configs.run_num)+'epoch'+str(epoch), sample)
+    np.save(samples_dir / 'epoch-'+str(epoch)+'.npy', sample)
 
     if len(sample) != 0:
         print('Generated samples')

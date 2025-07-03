@@ -48,6 +48,8 @@ def save_args(configs, run_type):
         outdir.mkdir(exist_ok=True)
     elif run_type == 'generate':
         outdir = Path(configs.training_run_name)
+    else:
+        raise ValueError(f"Invalid run_type: {run_type}. Valid values are 'train' and 'generate'.")
     json_file = outdir / f'{run_type}_configs.json'
     print(f'Saving args to {json_file}...',end = ' ', flush=True)
     args_dict = vars(configs)
