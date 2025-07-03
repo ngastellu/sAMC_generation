@@ -1,5 +1,7 @@
 # metrics to determine the performance of our learning algorithm
 #from comet_ml import Experiment
+from pathlib import Path
+import re
 import numpy as np
 import torch.nn.functional as F
 import os
@@ -19,6 +21,7 @@ import torch.distributed as dist
 import torch.multiprocessing as mp
 from torch.nn.parallel import DistributedDataParallel as DDP
 from qcnico.coords_io import read_xyz
+from args_utils import max_epoch
 
 
 class build_dataset(Dataset):
@@ -143,6 +146,77 @@ def get_model(configs, dataDims):
     #        torch.nn.init.kaiming_uniform_(m.weight, nonlinearity = 'relu')
 
     #model.apply(init_weights) # apply xavier weights to 1x1 and 3x3 convolutions
+
+def _get_epoch_chk(chkpt_dir, epoch):
+    chkpts = chkpt_dir.glob('*.pt')
+    pattern = re.compile(f"*-{epoch}[-_]")
+
+    matches = []
+    for fchk in chkpts:
+        if re.match(pattern, fchk.name):
+            matches.append(fchk)
+    
+    # If multiple models were saved at the same epoch (e.g., a '_gen' and a '_final'), load the final
+    if len(matches) > 1:
+        for fchk in matches:
+            if fchk.name.split('_')[2].split('.') == 'final':
+                return fchk
+    
+    # If no final file is found, but for some reason there is still a conflict, load the most recent
+    mtimes = np.array([fchk.stat().st_mtime for fchk in matches]) # timestamp of most recent modification in UTC
+    most_recent_fchk = matches[np.argmax(mtimes)]
+    return most_recent_fchk
+
+
+def _get_max_epoch_chk(chkpt_dir):
+    chkpts = chkpt_dir.glob('*.pt')
+    pattern = re.compile('-[0-9]+[_.]')
+    
+    max_epoch = -1
+    fchk_to_load = None
+
+    for fchk in chkpts:
+        match = re.search(pattern, fchk.name)
+        if match:
+            epoch = int(match[0])
+            if epoch > max_epoch:
+                max_epoch = epoch
+                fchk_to_load = fchk
+    
+    if fchk_to_load:
+        return fchk_to_load
+    else:
+        print('[_get_max_epoch_chkpt] !!! No checkpoint file found !!!')
+        return None
+
+    
+def load_checkpoint(chkpt_path, model, optim):    
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    checkpoint = torch.load(chkpt_path, map_location=device)
+    bc_old=checkpoint['model_state_dict']
+    bc_new=bc_old.copy()
+    for items in bc_old.items():
+        s1 = (items[0])
+        s2 = s1[7:]
+    
+        bc_new[s2] = bc_new.pop(s1)
+    model.load_state_dict(bc_new)
+    optim.load_state_dict(checkpoint['optimizer_state_dict'])
+    return model, optim
+
+
+def load_epoch_checkpoint(run_dir, epoch):
+    chkpt_dir = run_dir / 'checkpoints'
+    if epoch == -1:
+        fchk = _get_max_epoch_chk(chkpt_dir)
+    else:
+        fchk = _get_epoch_chk(chkpt_dir, epoch)
+    model, optim = load_checkpoint(fchk, model, optim)
+    return model, optim, epoch
+
+
+        
+        
 
 
 def get_dataloaders(configs):
