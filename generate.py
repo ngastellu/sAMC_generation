@@ -17,9 +17,10 @@ dataDims = pickle. load(a_file)
 
 parser = argparse.ArgumentParser()
 
+parser.add_argument('--model_name', type=str) # Must match the 'training_run_name' of a previous training run
+
 parser.add_argument('--run_num', type = int, default = 0)
 parser.add_argument('--experiment_name', type = str, default = 'testing')
-parser.add_argument('--model_name', type=str) # Must match the 'training_run_name' of a previous training run
 parser.add_argument('--load_epoch', type=int, default=-1) # Epoch from which to load the model, default is most recent saved
 
 # model architecture
