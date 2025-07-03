@@ -20,6 +20,7 @@ from Image_Processing_Utils import *
 import torch.distributed as dist
 import torch.multiprocessing as mp
 from torch.nn.parallel import DistributedDataParallel as DDP
+from ase import build
 from qcnico.coords_io import read_xyz
 from args_utils import max_epoch
 
@@ -125,6 +126,56 @@ def transform_data_graphene(samples):
     natoms = [sample.shape[0] for sample in samples]
     return _pixelize_data(samples, nsamples, natoms, icoord=(1,0))    
 
+
+
+def pad_graphene(Nx,Ny,edge_type, npad, pxl2angstrom=0.2, nclasses=2):
+    """Generates a masked pixel image of a graphene nanoribbon, with size (N,N)."""
+    # Unit cell dimensions for GNR type
+    DX_A = 1.2297560733739028
+    DY_A = 2.84
+    DX_Z = 0.71
+    DY_Z = 1.2297560733739028
+
+    if edge_type == 'armchair':
+        dx = DX_A
+        dy = DY_A
+    elif edge_type == 'zigzag':
+        dx = DX_Z
+        dy = DY_Z
+    else:
+        print(f'!!! Invalid edge type {edge_type}. Assuming zigzag edge for what follows. !!!')
+        dx = DX_Z
+        dy = DY_Z
+
+    Nx += 2*npad # pad both left and right sides of image
+    Lx = Nx * pxl2angstrom
+    Ny += npad # pad only top part of image
+    Ly = Ny * pxl2angstrom
+
+    n = 1 + int(Lx // dx) # number of unit cells along x-direction
+    m = 1 + int(Ly // dy) # number of unit cells along y-direction
+
+    gnr = build.graphene_nanoribbon(n,m,edge_type).positions
+    natoms = [gnr.shape[0]]
+    gnr = gnr[None,:,:] # add axis along first dim to make it compatible with _pixelize_data and the model
+    icoords = (2,0)
+    img = _pixelize_data(gnr, 1, natoms, icoords, img_shape=(Ny,Nx))
+    
+    # Normalize data on [0-1], allowing 0 to be the padding
+    img += 1
+    img /= nclasses
+    
+    #apply mask; zero all pixels expect the padding
+    masked_img = np.zeros((1,Ny,Nx))
+    masked_img[0,:npad, :] = img[0,:npad, :] #pad top
+    masked_img[0, :, :npad] = img[0,:, :npad] #pad left
+    masked_img[0, :, -npad:] = img[0,:, -npad:] #pad right
+    
+
+    masked_img = torch.tensor(masked_img)
+    return masked_img
+
+
 def get_dir_name(model, training_data, filters, layers, dilation, filter_size, noise, den_var, dataset_size):
     dir_name = "model=%d_dataset=%d_dataset_size=%d_filters=%d_layers=%d_dilation=%d_filter_size=%d_noise=%.1f_denvar=%.1f" % (model, training_data, dataset_size, filters, layers, dilation, filter_size, noise, den_var)  # directory where tensorboard logfiles will be saved
 
@@ -215,10 +266,7 @@ def load_epoch_checkpoint(run_dir, epoch):
     return model, optim, epoch
 
 
-        
-        
-
-
+    
 def get_dataloaders(configs):
     dataset = build_dataset(configs)  # get data
     dataDims = dataset.dataDims

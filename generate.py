@@ -8,7 +8,7 @@ import tqdm
 from torch import nn, optim
 from models import *
 from args_utils import add_bool_arg, save_args
-from utils import load_epoch_checkpoint
+from utils import load_epoch_checkpoint, pad_graphene
 
 a_file = open("datadims.pkl","rb")
 
@@ -17,7 +17,7 @@ dataDims = pickle. load(a_file)
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument('--model_name', type=str) # Must match the 'training_run_name' of a previous training run
+parser.add_argument('--model_name', type=str) # Must match the 'experiment_name' of a previous training run
 
 parser.add_argument('--run_num', type = int, default = 0)
 parser.add_argument('--experiment_name', type = str, default = 'testing')
@@ -56,7 +56,7 @@ parser.add_argument('--dataset_seed', type = int, default = 0)
 parser.add_argument('--model_seed', type = int, default = 0)
 
 # sample generation parameters
-parser.add_argument('--bound_type', type = str, default = 'empty') # what is outside the image during training and generation 'empty'
+parser.add_argument('--bound_type', type = str, default='empty', choices=['empty', 'armchair', 'zigzag']) # what is outside the image during training and generation 'empty'
 parser.add_argument('--boundary_layers', type = int, default = 0) # number of layers of conv_field between sample and actual image boundary
 parser.add_argument('--sample_outpaint_ratio', type = int, default = 7) # size of sample images, relative to the input images
 parser.add_argument('--softmax_temp', type = float, default = 1.0)
@@ -97,8 +97,15 @@ if configs.sample_generation_mode == 'serial':
 
         for batch in range(batches):  # can't do these all at once so we do it in batches
             print('Batch {} of {} batches'.format(batch + 1, batches))
-            sample_batch = torch.FloatTensor(configs.sample_batch_size, dataDims['channels'] , sample_y_padded + 2 * dataDims['conv field'] + 1 - dataDims['conv field'] * 1, sample_x_padded + 2 * dataDims['conv field'])  # needs to be explicitly padded by the convolutional field
-            sample_batch.fill_(0)  # initialize with minimum value
+
+            if configs.bound_type == 'empty':
+                sample_batch = torch.FloatTensor(configs.sample_batch_size, dataDims['channels'] , sample_y_padded + 2 * dataDims['conv field'] + 1 - dataDims['conv field'] * 1, sample_x_padded + 2 * dataDims['conv field'])  # needs to be explicitly padded by the convolutional field
+                sample_batch.fill_(0)  # initialize with minimum value
+
+            else:
+                Nx = sample_x_padded + 2 * dataDims['conv field']
+                Ny = sample_y_padded + dataDims['conv field'] + 1
+                sample_batch = pad_graphene(Nx, Ny, configs.bound_type,0) #padding already accounted for in Nx and Ny
 
             # if configs.do_conditioning: # assign conditions so the model knows what we want
             #     for i in range(len(configs.generation_conditions)):
@@ -149,8 +156,15 @@ elif configs.sample_generation_mode == 'parallel':
 
         for image in range(configs.n_samples):  # can't do these all at once so we do it in batches
             print('Image {} of {} images'.format(image + 1, configs.n_samples))
-            sample_batch = torch.FloatTensor(1, dataDims['channels'] , sample_y_padded + 2 * dataDims['conv field'] + 1 - dataDims['conv field'] * 1, sample_x_padded + 2 * dataDims['conv field'])  # needs to be explicitly padded by the convolutional field
-            sample_batch.fill_(0)  # initialize with minimum value
+            
+            if configs.bound_type == 'empty':
+                sample_batch = torch.FloatTensor(configs.sample_batch_size, dataDims['channels'] , sample_y_padded + 2 * dataDims['conv field'] + 1 - dataDims['conv field'] * 1, sample_x_padded + 2 * dataDims['conv field'])  # needs to be explicitly padded by the convolutional field
+                sample_batch.fill_(0)  # initialize with minimum value
+
+            else:
+                Nx = sample_x_padded + 2 * dataDims['conv field']
+                Ny = sample_y_padded + dataDims['conv field'] + 1
+                sample_batch = pad_graphene(Nx, Ny, configs.bound_type,0) #padding already accounted for in Nx and Ny
 
             # if configs.do_conditioning: # assign conditions so the model knows what we want
             #     for i in range(len(configs.generation_conditions)):

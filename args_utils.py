@@ -27,7 +27,7 @@ def load_train_args(run_name):
 
 def add_training_args(parser, overwrite=False):
     """Merges training args saved to JSON with the generation args defined in this script."""
-    args_dict = load_train_args(parser.training_run_name)
+    args_dict = load_train_args(parser.model_name)
     for k, v in args_dict.items():
         if overwrite or not hasattr(parser, k):
             setattr(parser, k, v)
@@ -47,7 +47,7 @@ def save_args(configs, run_type):
         outdir = Path(configs.experiment_name)
         outdir.mkdir(exist_ok=True)
     elif run_type == 'generate':
-        outdir = Path(configs.training_run_name)
+        outdir = Path(configs.model_name)
     else:
         raise ValueError(f"Invalid run_type: {run_type}. Valid values are 'train' and 'generate'.")
     json_file = outdir / f'{run_type}_configs.json'
