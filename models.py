@@ -145,7 +145,7 @@ class GatedPixelCNN(nn.Module):  # Dense or residual, gated, blocked, dilated Pi
         # initial layer
         self.v_initial_convolution = nn.Conv2d(channels, f_rat * initial_filters, (self.initial_pad + 1, initial_convolution_size), 1, padding * (self.initial_pad + 1, self.initial_pad), padding_mode='zeros', bias=False)
         self.v_to_h_initial = nn.Conv2d(f_rat * initial_filters, f_rat * initial_filters, 1, bias=False)
-        self.h_initial_convolution = MaskedConv2d_h('A', channels, channels, f_rat * initial_filters, (1, self.initial_pad + 1), 1, padding * (0, self.initial_pad), padding_mode='zeros', bias=False)
+        self.h_initial_convolution = MaskedConv2d_h('A', channels, channels, f_rat * initial_filters, (1, self.initial_pad+1), 1, padding * (0, self.initial_pad), padding_mode='zeros', bias=False)
         self.h_to_skip_initial = nn.Conv2d(initial_filters, initial_filters, 1, bias=False)
         self.h_to_h_initial = nn.Conv2d(initial_filters, initial_filters, 1, bias=False)
 
@@ -180,16 +180,25 @@ class GatedPixelCNN(nn.Module):  # Dense or residual, gated, blocked, dilated Pi
 
         # initial convolution
         v_data = self.v_initial_convolution(input)[:, :, :-(self.initial_pad + 2), :]  # remove extra
+        #np.save('vdata/vdata_init.npy', v_data.cpu().numpy())
         v_to_h_data = self.v_to_h_initial(v_data)#[:,:,:-1,:] # align with h-stack
         h_data = self.h_initial_convolution(input)[:,:,:,:-self.initial_pad] # unpad rhs of image
+        #np.save('hdata/hdata_init.npy', h_data.cpu().numpy())
         v_data = self.v_init_activation(v_data)
+        #np.save('hdata/hdata_init2.npy', torch.add(v_to_h_data,h_data).cpu().numpy())
         h_data = self.h_init_activation(torch.add(v_to_h_data, h_data))
 
         h_data = self.h_to_h_initial(h_data)
 
+        #np.save('v_to_hdata/v_to_h_init.npy', v_to_h_data.cpu().numpy())
+
         # hidden layers
         for i in range(self.layers):
+            print(f'\n*** Layer {i} ***')
             v_data, h_data = self.conv_layer[i](v_data, h_data) # stacked convolutions fix blind spot
+            # np.save('v_to_hdata/v_to_h_init.npy', v_to_h_data.cpu().numpy())
+            #np.save(f'vdata/vdata-{i}.npy', v_data.cpu().numpy())
+            #np.save(f'hdata/hdata-{i}.npy', h_data.cpu().numpy())
 
         # output convolutions
         x = self.fc1(h_data)

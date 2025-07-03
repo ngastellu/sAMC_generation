@@ -5,9 +5,6 @@ from torchsummary import summary
 import gc
 
 
-
-
-
 def main(configs):
    # experiment = get_comet_experiment(configs)
     print('one')

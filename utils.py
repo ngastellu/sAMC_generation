@@ -18,6 +18,7 @@ from Image_Processing_Utils import *
 import torch.distributed as dist
 import torch.multiprocessing as mp
 from torch.nn.parallel import DistributedDataParallel as DDP
+from qcnico.coords_io import read_xyz
 
 
 class build_dataset(Dataset):
@@ -42,6 +43,24 @@ class build_dataset(Dataset):
             #rot3=np.rot90(self.samples.copy(),k=3,axes=(2,3))
 
             self.samples = np.concatenate((self.samples,flipped,flipped2),axis=0)
+
+
+        elif configs.training_dataset == 'graphene':
+            zgnr = read_xyz('data/gnr_zigzag_11x12.xyz')
+            agnr = read_xyz('data/gnr_armchair_11x6.xyz')
+            self.samples = np.array([zgnr, agnr])
+            self.samples = transform_data_graphene(self.samples)
+            self.samples = np.expand_dims(self.samples, axis=1)
+            self.samples = self.samples[:,:,0:106,0:106]
+            
+            flipped = np.flip(self.samples.copy(),axis=3)
+            flipped2 = np.flip(self.samples.copy(),axis=2)
+            rot1=np.rot90(self.samples.copy(),k=1,axes=(2,3))
+            rot2=np.rot90(self.samples.copy(),k=2,axes=(2,3))
+            rot3=np.rot90(self.samples.copy(),k=3,axes=(2,3))
+
+            self.samples = np.concatenate((self.samples,rot1,rot3,rot2,flipped,flipped2),axis=0)
+
 
 
 
@@ -84,6 +103,23 @@ def transform_data_amorphous(sample):
                 newdata[i, int((sample[i, j, 2]) / 0.2), int((sample[i, j, 0]) / 0.2)] = 1
 
     return newdata
+
+def _pixelize_data(samples, nsamples, natoms, icoord,img_shape = (106, 123), pxl2angstrom=0.2):
+    newdata = np.zeros((nsamples, *img_shape))
+    for i in range(0, nsamples):
+        N = natoms[i]
+        for j in range(0, N):
+            pixel_coords = tuple(int((samples[i, j, q]) / pxl2angstrom) for q in icoord) #find pixel containing jth atom of ith sample
+            in_bounds = (pixel_coords[0] < img_shape[0]) & (pixel_coords[1] < img_shape[1])
+            if in_bounds: #ignore any atoms whose coordinates lie outside of the pixel image
+                newdata[i, *pixel_coords] = 1
+    return newdata
+
+
+def transform_data_graphene(samples):
+    nsamples = len(samples)
+    natoms = [sample.shape[0] for sample in samples]
+    return _pixelize_data(samples, nsamples, natoms, icoord=(1,0))    
 
 def get_dir_name(model, training_data, filters, layers, dilation, filter_size, noise, den_var, dataset_size):
     dir_name = "model=%d_dataset=%d_dataset_size=%d_filters=%d_layers=%d_dilation=%d_filter_size=%d_noise=%.1f_denvar=%.1f" % (model, training_data, dataset_size, filters, layers, dilation, filter_size, noise, den_var)  # directory where tensorboard logfiles will be saved

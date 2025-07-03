@@ -27,7 +27,7 @@ master_addr=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
 export MASTER_ADDR=$master_addr
 echo "MASTER_ADDR="$MASTER_ADDR
 
-python ./model_save_load_generateog.py --run_num=$SLURM_ARRAY_TASK_ID 
+python ./model_save_load_generateog.py --run_num=$SLURM_ARRAY_TASK_ID --softmax_temp=$1
 
 
 

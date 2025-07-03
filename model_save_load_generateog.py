@@ -58,7 +58,7 @@ parser.add_argument('--model_seed', type = int, default = 0)
 parser.add_argument('--bound_type', type = str, default = 'empty') # what is outside the image during training and generation 'empty'
 parser.add_argument('--boundary_layers', type = int, default = 0) # number of layers of conv_field between sample and actual image boundary
 parser.add_argument('--sample_outpaint_ratio', type = int, default = 7) # size of sample images, relative to the input images
-parser.add_argument('--softmax_temp', type = int, default = 1)
+parser.add_argument('--softmax_temp', type = float, default = 1.0)
 parser.add_argument('--sample_generation_mode', type = str, default = 'parallel') # 'parallel' or 'serial' - serial is currently untested
 parser.add_argument('--sample_batch_size', type = int, default = 1000) # maximum sample batch size - no automated test but can generally be rather large (1e3),
 parser.add_argument('--generation_period', type = int, default = 1000) # how often to run (expensive) generation during training
