@@ -1,11 +1,13 @@
+import numpy as np
 import torch
+import torch.nn.functional as F
 import pickle
 import time
 from tqdm import tqdm as barthing
 import tqdm
 import json
-from torch import nn, optim
-from models import *
+from torch import optim
+from models import GatedPixelCNN
 a_file = open("datadims.pkl","rb")
 
 dataDims = pickle. load(a_file)

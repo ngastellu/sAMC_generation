@@ -166,10 +166,10 @@ def pad_graphene(Nx,Ny,edge_type, npad, pxl2angstrom=0.2, nclasses=2):
     img /= nclasses
     
     #apply mask; zero all pixels expect the padding
-    masked_img = np.zeros((1,Ny,Nx))
-    masked_img[0,:npad, :] = img[0,:npad, :] #pad top
-    masked_img[0, :, :npad] = img[0,:, :npad] #pad left
-    masked_img[0, :, -npad:] = img[0,:, -npad:] #pad right
+    masked_img = np.zeros((1,1,Ny,Nx))
+    masked_img[0,0, :npad, :] = img[0,:npad, :] #pad top
+    masked_img[0,0, :, :npad] = img[0,:, :npad] #pad left
+    masked_img[0,0, :, -npad:] = img[0,:, -npad:] #pad right
     
 
     masked_img = torch.tensor(masked_img)
@@ -229,7 +229,7 @@ def _get_max_epoch_chk(chkpt_dir):
     for fchk in chkpts:
         match = re.search(pattern, fchk.name)
         if match:
-            epoch = int(match[0])
+            epoch = int(match[0][1:-1])
             if epoch > max_epoch:
                 max_epoch = epoch
                 fchk_to_load = fchk
@@ -241,7 +241,7 @@ def _get_max_epoch_chk(chkpt_dir):
         return None
 
     
-def load_checkpoint(chkpt_path, model, optim):    
+def load_checkpoint(chkpt_path, model, optimizer):    
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     checkpoint = torch.load(chkpt_path, map_location=device)
     bc_old=checkpoint['model_state_dict']
@@ -252,18 +252,19 @@ def load_checkpoint(chkpt_path, model, optim):
     
         bc_new[s2] = bc_new.pop(s1)
     model.load_state_dict(bc_new)
-    optim.load_state_dict(checkpoint['optimizer_state_dict'])
-    return model, optim
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    return model, optimizer
 
 
-def load_epoch_checkpoint(run_dir, epoch):
+def load_epoch_checkpoint(run_dir, epoch, model, optimizer):
+    run_dir = Path(run_dir)
     chkpt_dir = run_dir / 'checkpoints'
     if epoch == -1:
         fchk = _get_max_epoch_chk(chkpt_dir)
     else:
         fchk = _get_epoch_chk(chkpt_dir, epoch)
-    model, optim = load_checkpoint(fchk, model, optim)
-    return model, optim, epoch
+    model, optimizer = load_checkpoint(fchk, model, optimizer)
+    return model, optimizer, epoch
 
 
     

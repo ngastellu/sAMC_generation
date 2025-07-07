@@ -1,90 +1,3 @@
-from pathlib import Path
-import numpy as np
-import argparse
-import torch
-import pickle
-import time
-from tqdm import tqdm as barthing
-import tqdm
-from torch import nn, optim
-from models import *
-from args_utils import add_bool_arg, save_args
-from utils import load_epoch_checkpoint, pad_graphene
-
-
-
-parser = argparse.ArgumentParser()
-
-parser.add_argument('--model_name', type=str) # Must match the 'experiment_name' of a previous training run
-
-parser.add_argument('--run_num', type = int, default = 0)
-parser.add_argument('--experiment_name', type = str, default = 'testing')
-parser.add_argument('--load_epoch', type=int, default=-1) # Epoch from which to load the model, default is most recent saved
-
-# model architecture
-parser.add_argument('--model', type = str, default = 'gated1') # model architecture -- 'gated1'
-parser.add_argument('--fc_depth', type = int, default = 256) # number of neurons for final fully connected layers
-parser.add_argument('--init_conv_size', type=int, default= 5) # size of the initial convolutional window # ODD NUMBER
-parser.add_argument('--conv_filters', type = int, default = 40) # number of filters per gated convolutional layer
-parser.add_argument('--init_conv_filters', type=int, default = 40) # number of filters for the first convolutional layer  # MUST BE THE SAME AS 'conv_filters'
-parser.add_argument('--conv_size', type = int, default = 3) # ODD NUMBER
-parser.add_argument('--conv_layers', type = int, default = 65) # number of layers in the convnet - should be larger than the correlation length
-parser.add_argument('--dilation', type = int, default = 1) # must be 1 - greater than 1 is deprecated
-parser.add_argument('--activation_function', type = str, default = 'relu') # 'gated' is only working option
-parser.add_argument('--fc_dropout_probability', type = float, default = 0.21) # dropout probability on hidden FC layer(s) [0,1)
-parser.add_argument('--fc_norm', type = str, default = 'batch') # None or 'batch'
-parser.add_argument('--init_method', default='tcp://127.0.0.1:3456', type=str, help='')
-parser.add_argument('--dist-backend', default='gloo', type=str, help='')
-
-# add_bool_arg(parser, 'subsample_images', default = True) # cut training images in transverse direction by a custom amount at runtime
-#
-# add_bool_arg(parser,'do_conditioning', default = True) # incorporate conditioning variables in model training
-# # parser.add_argument('--init_conditioning_filters', type=int, default=20) # number of filters for optional conditioning layers
-# parser.add_argument('-l', '--generation_conditions', nargs='+', default=[0.23, 0.22]) # conditions used to generate samples at runtime
-
-# training parameters
-parser.add_argument('--training_dataset', type = str, default = 'amorphous') # name of training dataset - 'fake welds', 'welds 1'
-parser.add_argument('--training_batch_size', type = int, default = 1) # maximum training batch size
-add_bool_arg(parser, 'auto_training_batch', default = True) # whether to automatically set training batch size to largest value < the max
-parser.add_argument('--max_epochs', type = int, default =100) # number of epochs over which to train
-parser.add_argument('--convergence_moving_average_window', type = int, default = 200) # BROKEN - moving average window used to compute convergence criteria
-parser.add_argument('--max_dataset_size', type = int, default = 10000) # maximum dataset size (limited by size of actual dataset) - not sure the dataset is properly shuffled prior to this being applied
-parser.add_argument('--convergence_margin', type = float, default = 1e-4) # cutoff which determines when the model has converged
-parser.add_argument('--dataset_seed', type = int, default = 0)
-parser.add_argument('--model_seed', type = int, default = 0)
-
-# sample generation parameters
-parser.add_argument('--bound_type', type = str, default='empty', choices=['empty', 'armchair', 'zigzag']) # what is outside the image during training and generation 'empty'
-parser.add_argument('--boundary_layers', type = int, default = 0) # number of layers of conv_field between sample and actual image boundary
-parser.add_argument('--sample_outpaint_ratio', type = int, default = 7) # size of sample images, relative to the input images
-parser.add_argument('--softmax_temp', type = float, default = 1.0)
-parser.add_argument('--sample_generation_mode', type = str, default = 'parallel') # 'parallel' or 'serial' - serial is currently untested
-parser.add_argument('--sample_batch_size', type = int, default = 1000) # maximum sample batch size - no automated test but can generally be rather large (1e3),
-parser.add_argument('--generation_period', type = int, default = 1000) # how often to run (expensive) generation during training
-# utility of higher batch sizes for parallel generation is only realized with extremely large samples
-parser.add_argument('--n_samples', type = int, default = 1) # number of samples to generate
-
-add_bool_arg(parser, 'CUDA', default=True)
-add_bool_arg(parser, 'comet', default=False)
-
-configs,unknown= parser.parse_known_args()
-save_args(configs, 'generate')
-run_dir = Path(configs.model_name)
-
-a_file = open(run_dir / "datadims.pkl","rb")
-dataDims = pickle. load(a_file)
-
-
-model = GatedPixelCNN(configs,dataDims)
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-model.eval()
-model.to(device)
-
-optimizer = optim.SGD(model.parameters(),lr=1e-1, momentum=0.9, nesterov=True)#optim.AdamW(ddp_model.parameters(),lr=0.05, amsgrad=True)# optim.SGD(ddp_model.parameters(),lr=1e-1, momentum=0.9, nesterov=True)#optim.SGD(net.parameters(),lr=1e-4, momentum=0.9, nesterov=True)#optim.AdamW(ddp_model.parameters(),lr=0.01, amsgrad=True)
-
-model, optimizer, epoch = load_epoch_checkpoint(run_dir, configs.load_epoch, model, optimizer)
-
-
 if configs.sample_generation_mode == 'serial':
  
 
@@ -99,14 +12,9 @@ if configs.sample_generation_mode == 'serial':
         for batch in range(batches):  # can't do these all at once so we do it in batches
             print('Batch {} of {} batches'.format(batch + 1, batches))
 
-            if configs.bound_type == 'empty':
-                sample_batch = torch.FloatTensor(configs.sample_batch_size, dataDims['channels'] , sample_y_padded + 2 * dataDims['conv field'] + 1 - dataDims['conv field'] * 1, sample_x_padded + 2 * dataDims['conv field'])  # needs to be explicitly padded by the convolutional field
-                sample_batch.fill_(0)  # initialize with minimum value
+            sample_batch = torch.FloatTensor(configs.sample_batch_size, dataDims['channels'] , sample_y_padded + 2 * dataDims['conv field'] + 1 - dataDims['conv field'] * 1, sample_x_padded + 2 * dataDims['conv field'])  # needs to be explicitly padded by the convolutional field
+            sample_batch.fill_(0)  # initialize with minimum value
 
-            else:
-                Nx = sample_x_padded + 2 * dataDims['conv field']
-                Ny = sample_y_padded + dataDims['conv field'] + 1
-                sample_batch = pad_graphene(Nx, Ny, configs.bound_type,0) #padding already accounted for in Nx and Ny
 
             # if configs.do_conditioning: # assign conditions so the model knows what we want
             #     for i in range(len(configs.generation_conditions)):
@@ -137,7 +45,7 @@ if configs.sample_generation_mode == 'serial':
 
 
 
-            np.save(run_dir / 'samples' / f'{configs.experiment_name}-{configs.run_num}.npy', sample.cpu())
+            np.save('samples/sample-{}-temp-{}'.format(configs.run_num, configs.softmax_temp), sample.cpu())
 
     
 elif configs.sample_generation_mode == 'parallel':
@@ -158,23 +66,14 @@ elif configs.sample_generation_mode == 'parallel':
         for image in range(configs.n_samples):  # can't do these all at once so we do it in batches
             print('Image {} of {} images'.format(image + 1, configs.n_samples))
             
-            if configs.bound_type == 'empty':
-                sample_batch = torch.FloatTensor(configs.sample_batch_size, dataDims['channels'] , sample_y_padded + 2 * dataDims['conv field'] + 1 - dataDims['conv field'] * 1, sample_x_padded + 2 * dataDims['conv field'])  # needs to be explicitly padded by the convolutional field
-                sample_batch.fill_(0)  # initialize with minimum value
-                np.save(run_dir / 'empty_sample_batch.npy', sample_batch.cpu().numpy())
-
-            else:
-                Nx = sample_x_padded + 2 * dataDims['conv field']
-                Ny = sample_y_padded + dataDims['conv field'] + 1
-                sample_batch = pad_graphene(Nx, Ny, configs.bound_type, 0) #padding already accounted for in Nx and Ny
-                np.save(run_dir / f'{configs.bound_type}_sample_batch.npy', sample_batch.cpu().numpy())
+            sample_batch = torch.FloatTensor(configs.sample_batch_size, dataDims['channels'] , sample_y_padded + 2 * dataDims['conv field'] + 1 - dataDims['conv field'] * 1, sample_x_padded + 2 * dataDims['conv field'])  # needs to be explicitly padded by the convolutional field
+            sample_batch.fill_(0)  # initialize with minimum value
 
 
             # if configs.do_conditioning: # assign conditions so the model knows what we want
             #     for i in range(len(configs.generation_conditions)):
             #         sample_batch[:,1+i,:,:] = (configs.generation_conditions[i] - dataDims['conditional mean']) / dataDims['conditional std']
 
-            print(f'~~~~~~~~~~ sample_batch.shape {sample_batch.shape} ~~~~~~~~~~~')
             if configs.CUDA:
                 sample_batch = sample_batch.cuda()
 
@@ -268,7 +167,7 @@ elif configs.sample_generation_mode == 'parallel':
 
 
            
-            np.save(run_dir / 'samples' / f'{configs.experiment_name}-{configs.run_num}.npy', sample.cpu())
+            np.save('samples/sample-{}-temp-{}'.format(configs.experiment_name, configs.softmax_temp), sample.cpu())
 
 
 

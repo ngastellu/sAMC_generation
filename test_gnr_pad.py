@@ -57,13 +57,13 @@ def bitmap_graphene(N,edge_type, npad, pxl2angstrom=0.2):
 
 
 
-N = 100
-npad = 20
+N = 300
+npad = 66
 
 for edge_type in ['armchair', 'zigzag']:
     img, masked_img = bitmap_graphene(N,edge_type,npad)
     
-    fig, axs = plt.subplots(1,2,sharex=True,sharey=True)
-    axs[0].imshow(img[0,:,:])
-    axs[1].imshow(masked_img[0,:,:])
+    # fig, axs = plt.subplots(1,2,sharex=True,sharey=True)
+    # axs[0].imshow(img[0,:,:])
+    plt.imshow(masked_img[0,:,:])
     plt.show()

@@ -62,7 +62,7 @@ def main(configs):
             converged = auto_convergence(configs, epoch, tr_err_hist, te_err_hist)
             if int(epoch % 1 == 0):
                  with open(run_dir / 'training-info' + '.txt', 'a') as f:  # Change 'w' to 'a' to append instead of overwrite
-                        f.write(str(torch.mean(torch.stack(err_tr)).float()) + " " + str(time_tr) + " " + str(torch.mean(torch.stack(err_te)).float()) + "\n")
+                        f.write(f'epoch {epoch}: ' + str(torch.mean(torch.stack(err_tr)).float()) + " " + str(time_tr) + " " + str(torch.mean(torch.stack(err_te)).float()) + "\n")
 
 
             if epoch % configs.generation_period == 0:
